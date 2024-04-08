@@ -7,10 +7,12 @@ module org.dmiit3iy {
     requires retrofit2;
     requires okhttp3;
     requires retrofit2.converter.jackson;
+    requires okhttp.eventsource;
 
     opens org.dmiit3iy to javafx.fxml;
     opens org.dmiit3iy.controller to javafx.fxml;
 
     exports org.dmiit3iy;
     exports org.dmiit3iy.dto to com.fasterxml.jackson.databind;
+    exports org.dmiit3iy.model to com.fasterxml.jackson.databind;
 }

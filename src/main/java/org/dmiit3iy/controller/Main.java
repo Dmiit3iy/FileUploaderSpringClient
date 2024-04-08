@@ -1,25 +1,102 @@
 package org.dmiit3iy.controller;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.launchdarkly.eventsource.EventHandler;
+import com.launchdarkly.eventsource.EventSource;
+import com.launchdarkly.eventsource.MessageEvent;
+import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.control.cell.TreeItemPropertyValueFactory;
 import javafx.util.Callback;
+import org.dmiit3iy.model.FolderChangeEvent;
 import org.dmiit3iy.retorfit.DirectoryRepository;
 
 import java.io.File;
 import java.io.IOException;
+import java.net.URI;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class Main {
+    private ObjectMapper objectMapper = new ObjectMapper();
+
+    {
+        this.objectMapper.registerModule(new JavaTimeModule());
+    }
     @FXML
     public TreeTableView treeTVServer;
     @FXML
     public TreeTableView<File> treeTVClient = new TreeTableView<File>();
     public TreeView<String> treeView = new TreeView<String>();
-
+    private ExecutorService executorService = Executors.newSingleThreadExecutor();
     private DirectoryRepository directoryRepository = new DirectoryRepository();
 
     @FXML
     void initialize() {
+
+            executorService.execute(() -> {
+                try {
+                    while (true) {
+                        System.out.println("Initialize event source");
+
+                        String url = "http://localhost:8080/folder-watch";
+                        EventSource.Builder builder = new EventSource.Builder(new EventHandler() {
+                            @Override
+                            public void onOpen() {
+                                System.out.println("onOpen");
+                            }
+
+                            @Override
+                            public void onClosed() {
+                                System.out.println("onClosed");
+                            }
+
+                            @Override
+                            public void onMessage(String event, MessageEvent messageEvent) {
+                                Platform.runLater(() -> {
+                                    try {
+                                        System.out.println(messageEvent.getData());
+                                        FolderChangeEvent folderChangeEvent = objectMapper.readValue(messageEvent.getData(), FolderChangeEvent.class);
+                                        System.out.println(folderChangeEvent.getAction());
+                                        String action = folderChangeEvent.getAction();
+                                        if (action.equals("ENTRY_DELETE")||action.equals("ENTRY_CREATE")){
+                                            File file=directoryRepository.get();
+                                            treeTVServer.setRoot(getNodesForDirectoryForTreeTable(file));
+                                        }
+                                    } catch (JsonProcessingException e) {
+                                        throw new RuntimeException(e);
+                                    } catch (IOException e) {
+                                        throw new RuntimeException(e);
+                                    }
+                                });
+                            }
+
+                            @Override
+                            public void onComment(String comment) {
+                                System.out.println("onComment");
+                            }
+
+                            @Override
+                            public void onError(Throwable t) {
+                                System.out.println("onError: " + t);
+                            }
+
+                        }, URI.create(url));
+
+                        try (EventSource eventSource = builder.build()) {
+                            eventSource.start();
+                            TimeUnit.MINUTES.sleep(1);
+                        }
+                    }
+                } catch (InterruptedException ignored) {}
+            });
+
+
+
         try {
 
             File files = directoryRepository.get();
