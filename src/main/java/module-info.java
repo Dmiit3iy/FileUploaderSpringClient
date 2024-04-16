@@ -8,6 +8,7 @@ module org.dmiit3iy {
     requires okhttp3;
     requires retrofit2.converter.jackson;
     requires okhttp.eventsource;
+    requires zip4j;
 
     opens org.dmiit3iy to javafx.fxml;
     opens org.dmiit3iy.controller to javafx.fxml;
