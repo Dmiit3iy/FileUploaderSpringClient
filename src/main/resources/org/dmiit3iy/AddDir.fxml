@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<AnchorPane prefHeight="171.0" prefWidth="600.0" xmlns="http://javafx.com/javafx/17.0.2-ea" xmlns:fx="http://javafx.com/fxml/1" fx:controller="org.dmiit3iy.controller.AddDirectoryController">
+   <children>
+      <TextField fx:id="nameTextField" layoutX="30.0" layoutY="53.0" prefHeight="26.0" prefWidth="367.0" />
+      <Label layoutX="30.0" layoutY="26.0" text="Name of directory" />
+      <Button layoutX="353.0" layoutY="97.0" mnemonicParsing="false" onAction="#createDirButton" prefHeight="26.0" prefWidth="43.0" text="OK" />
+   </children>
+</AnchorPane>

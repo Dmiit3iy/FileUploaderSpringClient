@@ -7,15 +7,24 @@ import com.launchdarkly.eventsource.EventHandler;
 import com.launchdarkly.eventsource.EventSource;
 import com.launchdarkly.eventsource.MessageEvent;
 import javafx.application.Platform;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
-import javafx.scene.control.cell.TreeItemPropertyValueFactory;
+import javafx.scene.control.cell.*;
+import javafx.scene.input.MouseButton;
+import javafx.scene.input.MouseEvent;
 import javafx.stage.WindowEvent;
 import javafx.util.Callback;
 import net.lingala.zip4j.ZipFile;
 import org.dmiit3iy.App;
 import org.dmiit3iy.model.FolderChangeEvent;
+
 import org.dmiit3iy.retorfit.DirectoryRepository;
 import org.dmiit3iy.retorfit.FileUploadRepository;
 import org.dmiit3iy.util.Util;
@@ -24,28 +33,33 @@ import java.io.File;
 import java.io.IOException;
 import java.net.URI;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 public class MainController {
+    @FXML
+    public ListView<File> listViewServer;
+    @FXML
+    public ListView<File> listViewClient;
     private ObjectMapper objectMapper = new ObjectMapper();
 
     {
         this.objectMapper.registerModule(new JavaTimeModule());
     }
 
-    @FXML
-    public TreeTableView treeTVServer;
-    @FXML
-    public TreeTableView<File> treeTVClient = new TreeTableView<File>();
     private ExecutorService executorService = Executors.newSingleThreadExecutor();
     private DirectoryRepository directoryRepository = new DirectoryRepository();
-    private List<File> filesToSend = new ArrayList<>();
 
-    private List<File> filesToLoad = new ArrayList<>();
-    private FileUploadRepository fileUploadRepository= new FileUploadRepository();
+    private FileUploadRepository fileUploadRepository = new FileUploadRepository();
+
+    private String path = System.getProperty("user.home") + "\\Desktop";
+    private ObservableList<File> observableListServer;
+    private ObservableList<File> observableListClient;
+    private File currentServerDirectory;
+    private File currentClientDirectory;
 
     @FXML
     void initialize() {
@@ -76,12 +90,19 @@ public class MainController {
                                     System.out.println(folderChangeEvent.getAction());
                                     String action = folderChangeEvent.getAction();
                                     if (action.equals("ENTRY_DELETE") || action.equals("ENTRY_CREATE")) {
-                                        File file = directoryRepository.get();
-                                        treeTVServer.setRoot(getNodesForDirectoryForTreeTable(file));
+                                        Thread.sleep(1000);
+
+                                        List<File> list = directoryRepository.get();
+                                        observableListServer = FXCollections.observableArrayList(list);
+                                        listViewServer.setItems(observableListServer);
+                                        System.out.println(list);
+
                                     }
                                 } catch (JsonProcessingException e) {
                                     throw new RuntimeException(e);
                                 } catch (IOException e) {
+                                    throw new RuntimeException(e);
+                                } catch (InterruptedException e) {
                                     throw new RuntimeException(e);
                                 }
                             });
@@ -110,117 +131,94 @@ public class MainController {
 
 
         try {
+            // List<File> serverFiles = directoryRepository.get();
+            currentServerDirectory = directoryRepository.getRoot();
+            List<File> serverFiles = List.of(currentServerDirectory.listFiles());
+            observableListServer = FXCollections.observableArrayList(serverFiles);
 
-            File files = directoryRepository.get();
-            String path = System.getProperty("user.home") + "/Desktop";
+            //List<File> files = getFilesForListView(new File(path));
+            currentClientDirectory = new File(path);
+            List<File> files = getFilesForListView(currentClientDirectory);
+            observableListClient = FXCollections.observableArrayList(files);
 
-            TreeTableColumn<File, String> fileNameColClient = new TreeTableColumn<File, String>("name");
-            fileNameColClient.setCellValueFactory(new TreeItemPropertyValueFactory<File, String>("name"));
-            TreeTableColumn<File, Boolean> actionColClient = new TreeTableColumn<File, Boolean>("check");
-
-            TreeTableColumn<File, String> fileNameColServer = new TreeTableColumn<File, String>("name");
-            fileNameColServer.setCellValueFactory(new TreeItemPropertyValueFactory<File, String>("name"));
-            TreeTableColumn<File, Boolean> actionColServer = new TreeTableColumn<File, Boolean>("check");
-
-            fileNameColClient.prefWidthProperty().bind(treeTVClient.widthProperty().multiply(0.8));
-            actionColClient.prefWidthProperty().bind(treeTVClient.widthProperty().multiply(0.2));
-
-            fileNameColServer.prefWidthProperty().bind(treeTVServer.widthProperty().multiply(0.8));
-            actionColServer.prefWidthProperty().bind(treeTVServer.widthProperty().multiply(0.2));
-            fileNameColClient.setResizable(false);
-            actionColClient.setResizable(false);
-            fileNameColServer.setResizable(false);
-            actionColServer.setResizable(false);
-
-
-            Callback<TreeTableColumn<File, Boolean>, TreeTableCell<File, Boolean>> cellFactory =
-                    new Callback<TreeTableColumn<File, Boolean>, TreeTableCell<File, Boolean>>() {
+            listViewClient.setCellFactory(new Callback<ListView<File>, ListCell<File>>() {
+                @Override
+                public ListCell<File> call(ListView<File> param) {
+                    ListCell<File> cell = new ListCell<File>() {
                         @Override
-                        public TreeTableCell call(final TreeTableColumn<File, Boolean> param) {
-                            final TreeTableCell<File, Boolean> cell = new TreeTableCell<File, Boolean>() {
-                                CheckBox checkBox = new CheckBox();
-
-                                @Override
-                                public void updateItem(Boolean item, boolean empty) {
-                                    super.updateItem(item, empty);
-                                    if (empty) {
-                                        setGraphic(null);
-                                        setText(null);
-                                    } else {
-
-                                        checkBox.setOnAction(event -> {
-                                            if (checkBox.isSelected()) {
-                                                File checkFile = getTreeTableView().getTreeItem(getIndex()).getValue();
-                                                filesToSend.add(checkFile);
-                                                System.out.println("В массиве для отправки:" + filesToSend.toString());
-                                            }
-                                            if (!checkBox.isSelected()) {
-                                                File checkFile = getTreeTableView().getTreeItem(getIndex()).getValue();
-                                                filesToSend.remove(checkFile);
-                                                System.out.println("В массиве для отправки:" + filesToSend.toString());
-                                            }
-                                        });
-                                        setGraphic(checkBox);
-                                        setText(null);
-                                    }
-                                }
-                            };
-                            return cell;
+                        protected void updateItem(File file, boolean empty) {
+                            super.updateItem(file, empty);
+                            if (empty || file == null) {
+                                setText(null);
+                            } else {
+                                setText(file.getName());
+                            }
                         }
                     };
 
-            Callback<TreeTableColumn<File, Boolean>, TreeTableCell<File, Boolean>> cellFactoryServer =
-                    new Callback<TreeTableColumn<File, Boolean>, TreeTableCell<File, Boolean>>() {
+                    cell.setOnMouseClicked(event -> {
+                        if (event.getClickCount() == 2) {
+                            File selectedItem = cell.getItem();
+                            if (selectedItem.isDirectory() && selectedItem.list().length != 0) {
+                                currentClientDirectory=selectedItem;
+                                System.out.println(Arrays.toString(selectedItem.list()));
+                                List<File> list = Arrays.asList(selectedItem.listFiles());
+                                ObservableList<File> observableList = FXCollections.observableArrayList(list);
+                                listViewClient.setItems(observableList);
+                            }
+
+                        }
+                    });
+
+                    return cell;
+                }
+            });
+
+
+            listViewServer.setCellFactory(new Callback<ListView<File>, ListCell<File>>() {
+                @Override
+                public ListCell<File> call(ListView<File> param) {
+                    ListCell<File> cell = new ListCell<File>() {
                         @Override
-                        public TreeTableCell call(final TreeTableColumn<File, Boolean> param) {
-                            final TreeTableCell<File, Boolean> cell = new TreeTableCell<File, Boolean>() {
-                                CheckBox checkBox = new CheckBox();
-
-                                @Override
-                                public void updateItem(Boolean item, boolean empty) {
-                                    super.updateItem(item, empty);
-                                    if (empty) {
-                                        setGraphic(null);
-                                        setText(null);
-                                    } else {
-
-                                        checkBox.setOnAction(event -> {
-                                            if (checkBox.isSelected()) {
-                                                File checkFile = getTreeTableView().getTreeItem(getIndex()).getValue();
-                                                filesToLoad.add(checkFile);
-                                                System.out.println("В массиве для отправки:" +  filesToLoad.toString());
-                                            }
-                                            if (!checkBox.isSelected()) {
-                                                File checkFile = getTreeTableView().getTreeItem(getIndex()).getValue();
-                                                filesToLoad .remove(checkFile);
-                                                System.out.println("В массиве для отправки:" +  filesToLoad.toString());
-                                            }
-                                        });
-                                        setGraphic(checkBox);
-                                        setText(null);
-                                    }
-                                }
-                            };
-                            return cell;
+                        protected void updateItem(File file, boolean empty) {
+                            super.updateItem(file, empty);
+                            if (empty || file == null) {
+                                setText(null);
+                            } else {
+                                setText(file.getName());
+                            }
                         }
                     };
 
+                    cell.setOnMouseClicked(event -> {
+                        if (event.getClickCount() == 2) {
+                            File selectedItem = cell.getItem();
+                            // if (selectedItem.isDirectory() && selectedItem.list().length != 0) {
+                            if (selectedItem.isDirectory()) {
+                                currentServerDirectory = selectedItem;
+                                System.out.println(Arrays.toString(selectedItem.list()));
+                                List<File> list = Arrays.asList(selectedItem.listFiles());
+                                observableListServer = FXCollections.observableArrayList(list);
+                                listViewServer.setItems(observableListServer);
+                            }
+
+                        }
+                    });
+
+                    return cell;
+                }
+            });
+            listViewServer.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+            listViewClient.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
+            listViewClient.setItems(observableListClient);
+            listViewServer.setItems(observableListServer);
 
 
-
-            actionColClient.setCellFactory(cellFactory);
-            //TODO написать свою фабрику для сервера
-            actionColServer.setCellFactory(cellFactoryServer);
-
-
-            treeTVClient.setRoot(getNodesForDirectoryForTreeTable(new File(path)));
-            treeTVClient.getColumns().addAll(fileNameColClient, actionColClient);
-
-            treeTVServer.setRoot(getNodesForDirectoryForTreeTable(files));
-            treeTVServer.getColumns().addAll(fileNameColServer, actionColServer);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+
+
     }
 
 
@@ -235,27 +233,15 @@ public class MainController {
         return closeEventHandler;
     }
 
-    public TreeItem<String> getNodesForDirectory(File directory) {
-        TreeItem<String> root = new TreeItem<String>(directory.getName());
+
+    public List<File> getFilesForListView(File directory) {
+        List<File> root = new ArrayList<>();
         for (File f : directory.listFiles()) {
-            if (f.isDirectory()) //если каталог идем на рекурсию
-                root.getChildren().add(getNodesForDirectory(f));
-            else //если просто файл заполняем только имя
-                root.getChildren().add(new TreeItem<String>(f.getName()));
+            root.add(f);
         }
         return root;
     }
 
-    public TreeItem<File> getNodesForDirectoryForTreeTable(File directory) {
-        TreeItem<File> root = new TreeItem<File>(directory);
-        for (File f : directory.listFiles()) {
-            if (f.isDirectory()) //если каталог идем на рекурсию
-                root.getChildren().add(getNodesForDirectoryForTreeTable(f));
-            else //если просто файл заполняем только имя
-                root.getChildren().add(new TreeItem<File>(f));
-        }
-        return root;
-    }
 
     public void print(File f) {
         for (File x : f.listFiles()) {
@@ -272,17 +258,55 @@ public class MainController {
     public void downloadButton(ActionEvent actionEvent) {
     }
 
-    //TODO написать метод для добавления файлов в zip и сделать отправку на сервер
+
     public void loadButton(ActionEvent actionEvent) {
-        if (!filesToSend.isEmpty()) {
-            ZipFile zipFile = Util.addZip(filesToSend);
+        ObservableList<File> observableList = listViewClient.getSelectionModel().getSelectedItems();
+        System.out.println(observableList);
+        if (!observableList.isEmpty()) {
+            ZipFile zipFile = Util.addZip(observableList);
             try {
-                fileUploadRepository.uploadFile(zipFile);
+                String path = listViewServer.getItems().get(0).getParent();
+                fileUploadRepository.uploadFile(zipFile, listViewServer.getItems().get(0).getParent());
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
-        }else {
-            App.showMessage("Уведомление","Нужно выбрать файлы для отправки", Alert.AlertType.INFORMATION);
+            zipFile.getFile().delete();
+        } else {
+            App.showMessage("Уведомление", "Нужно выбрать файлы для отправки", Alert.AlertType.INFORMATION);
+        }
+    }
+
+    @FXML
+    public void upButtonServer(ActionEvent actionEvent) {
+        File up = new File(currentServerDirectory.getParent());
+        if (up.exists() && up.toPath().startsWith("C:\\UploaderStorage")) {
+            List<File> list = Arrays.asList(up.listFiles());
+            ObservableList<File> observableList = FXCollections.observableArrayList(list);
+            listViewServer.setItems(observableList);
+            currentServerDirectory = up;
+        }
+    }
+
+    @FXML
+    public void upButtonClient(ActionEvent actionEvent) {
+
+        File up = new File(currentClientDirectory.getParent());
+        if (up.exists()) {
+            List<File> list = Arrays.asList(up.listFiles());
+            ObservableList<File> observableList = FXCollections.observableArrayList(list);
+            listViewClient.setItems(observableList);
+            currentClientDirectory=up;
+        }
+    }
+
+    public void createDirectoryButton(ActionEvent actionEvent) {
+        try {
+            App.openWindowAndWait("AddDir.fxml", "Create dir", currentServerDirectory);
+            List<File> list = Arrays.asList(currentServerDirectory.listFiles());
+            observableListServer = FXCollections.observableArrayList(list);
+            listViewServer.setItems(observableListServer);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 }

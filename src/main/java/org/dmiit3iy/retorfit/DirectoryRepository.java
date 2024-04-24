@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import okhttp3.OkHttpClient;
 import org.dmiit3iy.dto.ResponseResult;
+import org.dmiit3iy.model.UserFile;
 import org.dmiit3iy.util.Constants;
 import retrofit2.Response;
 import retrofit2.Retrofit;
@@ -23,7 +24,7 @@ public class DirectoryRepository {
         objectMapper.registerModule(new JavaTimeModule());
         OkHttpClient client = new OkHttpClient.Builder().build();
         Retrofit retrofit = new Retrofit.Builder()
-                .baseUrl(Constants.URL + "user/")
+                .baseUrl(Constants.URL)
                 .addConverterFactory(JacksonConverterFactory.create(objectMapper))
                 .client(client)
                 .build();
@@ -41,8 +42,13 @@ public class DirectoryRepository {
     }
 
 
-    public File get() throws IOException {
-        Response<ResponseResult<File>> execute = service.get().execute();
+    public List<File> get() throws IOException {
+        Response<ResponseResult<List<File>>> execute = service.get().execute();
+        return getData(execute);
+    }
+
+    public File getRoot() throws IOException {
+        Response<ResponseResult<File>> execute = service.getRoot().execute();
         return getData(execute);
     }
 }

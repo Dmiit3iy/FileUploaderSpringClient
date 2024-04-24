@@ -4,16 +4,13 @@ import javafx.application.Application;
 import javafx.event.Event;
 import javafx.fxml.FXMLLoader;
 import javafx.scene.Node;
-import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Alert;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.Stage;
 import javafx.stage.StageStyle;
-import org.dmiit3iy.controller.CloseEvent;
 import org.dmiit3iy.controller.ControllerData;
 import org.dmiit3iy.controller.MainController;
-
 import java.io.File;
 import java.io.IOException;
 
